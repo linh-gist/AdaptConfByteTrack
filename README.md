@@ -7,8 +7,10 @@ Source code for the paper "Adaptive Confidence Threshold for ByteTrack in Multi-
 
 
 ## How to run?
+    # Build cython_bbox
+    
     python3 track.py
     
     # Detection files outputed from detectors
-    # Change dectector => evaluate_fairmot("./detection/detector_cstrack")
-    # Change dectector => evaluate_fairmot("./detection/bytetrack")
+    # Change detector => evaluate_fairmot("./detection/detector_cstrack")
+    # Change detector => evaluate_fairmot("./detection/bytetrack")

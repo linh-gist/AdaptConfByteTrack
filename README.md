@@ -1,4 +1,4 @@
-# AdaptConfByteTrack
+# BYTETrack, OC-SORT, CMC (Camera Motion Compensation), HOTA Evaluation
 Source code for the paper "Adaptive Confidence Threshold for ByteTrack in Multi-Object Tracking"
 
 > [**Adaptive Confidence Threshold for ByteTrack in Multi-Object Tracking**](https://arxiv.org/abs/2312.01650),            

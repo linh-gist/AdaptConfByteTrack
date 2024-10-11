@@ -341,8 +341,8 @@ class MOTEvaluator:
     def evaluate_ocsort(self, args, dets_path):
         train_dir, test_dir, seqs_train, seqs_test = mot16(self.args.data_dir)
         for video_name in seqs_train:
-            tracker = OCSort(det_thresh=args.track_thresh, iou_threshold=args.iou_thresh,
-                             asso_func=args.asso, delta_t=args.deltat, inertia=args.inertia)
+            tracker = OCSort(det_thresh=args.track_thresh, iou_threshold=args.iou_thresh, asso_func=args.asso,
+                             delta_t=args.deltat, inertia=args.inertia, use_byte=args.use_byte, use_gmc=args.use_gmc)
             print("Starting tracking sequence", video_name)
             results = []
             dets = np.load(dets_path + "/" + video_name + ".npy")

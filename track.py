@@ -21,9 +21,10 @@ def make_parser():
     parser.add_argument('--asso', default="iou", help="similarity function: iou/giou/diou/ciou/ctdis")
     parser.add_argument("--deltat", type=int, default=3, help="time step difference to estimate direction")
     parser.add_argument("--inertia", type=float, default=0.2, help="the weight of VDC term in cost matrix")
+    parser.add_argument("--use_byte", type=bool, default=True, help="use BYTE association")
     # parser.add_argument("--track_thresh", type=float, default=0.6, help="detection confidence threshold")
     # add cmc for fixing the camera motion
-    parser.add_argument("--use_gmc", default=True, type=bool, help="use cmc method or not")
+    parser.add_argument("--use_gmc", default=True, type=bool, help="use Camera Motion Compensation")
 
     return parser
 

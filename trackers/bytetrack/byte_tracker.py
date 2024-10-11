@@ -3,6 +3,7 @@ import numpy as np
 from .kalman_filter import KalmanFilter
 from . import matching
 from .basetrack import BaseTrack, TrackState
+from .cmc import GMC
 
 
 class STrack(BaseTrack):
@@ -11,7 +12,7 @@ class STrack(BaseTrack):
     def __init__(self, tlwh, score):
 
         # wait activate
-        self._tlwh = np.asarray(tlwh, dtype=np.float)
+        self._tlwh = np.asarray(tlwh, dtype=float)
         self.kalman_filter = None
         self.mean, self.covariance = None, None
         self.is_activated = False
@@ -26,7 +27,7 @@ class STrack(BaseTrack):
         self.mean, self.covariance = self.kalman_filter.predict(mean_state, self.covariance)
 
     @staticmethod
-    def multi_predict(stracks):
+    def multi_predict(stracks, H):
         if len(stracks) > 0:
             multi_mean = np.asarray([st.mean.copy() for st in stracks])
             multi_covariance = np.asarray([st.covariance for st in stracks])
@@ -35,6 +36,25 @@ class STrack(BaseTrack):
                     multi_mean[i][7] = 0
             multi_mean, multi_covariance = STrack.shared_kalman.multi_predict(multi_mean, multi_covariance)
             for i, (mean, cov) in enumerate(zip(multi_mean, multi_covariance)):
+                if H is not None:
+                    # Apply Camera Motion Compensation using the transformation matrix J
+                    # J = np.kron(np.eye(4, dtype=float), H[:2, :2])
+                    # tx, ty = H[0, 2], H[1, 2]
+                    a11, a12, tx = H[0]
+                    a21, a22, ty = H[1]
+                    J = np.array([
+                        [a11, a12, 0, 0, 0, 0, 0, 0],  # x
+                        [a21, a22, 0, 0, 0, 0, 0, 0],  # y
+                        [0, 0, np.sqrt(a11 ** 2 + a21 ** 2), 0, 0, 0, 0, 0],  # w
+                        [0, 0, 0, np.sqrt(a12 ** 2 + a22 ** 2), 0, 0, 0, 0],  # h
+                        [0, 0, 0, 0, a11, a12, 0, 0],  # dx
+                        [0, 0, 0, 0, a21, a22, 0, 0],  # dy
+                        [0, 0, 0, 0, 0, 0, np.sqrt(a11 ** 2 + a21 ** 2), 0],  # dw
+                        [0, 0, 0, 0, 0, 0, 0, np.sqrt(a12 ** 2 + a22 ** 2)]  # dh
+                    ])
+                    mean = np.dot(J, mean) + np.array([tx, ty, 0, 0, 0, 0, 0, 0])  # -state
+                    cov = J @ cov @ J.T
+                    #####
                 stracks[i].mean = mean
                 stracks[i].covariance = cov
 
@@ -151,8 +171,11 @@ class BYTETracker(object):
         self.buffer_size = int(frame_rate / 30.0 * args.track_buffer)
         self.max_time_lost = self.buffer_size
         self.kalman_filter = KalmanFilter()
+        self.use_gmc = args.use_gmc
+        self.gmc = GMC(method="cmc", verbose=None)
+        self.asso_func = args.asso
 
-    def update(self, output_results):  # , img_info, img_size):
+    def update(self, output_results, image):
         self.frame_id += 1
         activated_starcks = []
         refind_stracks = []
@@ -173,7 +196,12 @@ class BYTETracker(object):
         scores = output_results[:, 4]
         bboxes = output_results[:, :4]
 
-        threshold = scores[np.argmin(np.diff(scores))]
+        if len(scores) > 1:
+            threshold = scores[np.argmin(np.diff(scores))]
+            if threshold < self.det_thresh:
+                threshold = self.det_thresh
+        else:
+            threshold = self.det_thresh
         remain_inds = scores >= threshold
         inds_low = scores > 0.1
         inds_high = scores <= threshold
@@ -207,10 +235,13 @@ class BYTETracker(object):
         ''' Step 2: First association, with high score detection boxes'''
         strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)
         # Predict the current location with KF
-        STrack.multi_predict(strack_pool)
+        H = None
+        if self.use_gmc:
+            H = self.gmc.applyCMC(image)
+        STrack.multi_predict(strack_pool, H)
         dists = matching.iou_distance(strack_pool, detections)
-        if not self.args.mot20:
-            dists = matching.fuse_score(dists, detections)
+        # if not self.args.mot20:
+        #     dists = matching.fuse_score(dists, detections)
         matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args.match_thresh)
 
         for itracked, idet in matches:
@@ -288,7 +319,7 @@ class BYTETracker(object):
         self.removed_stracks.extend(removed_stracks)
         self.tracked_stracks, self.lost_stracks = remove_duplicate_stracks(self.tracked_stracks, self.lost_stracks)
         # get scores of lost tracks
-        output_stracks = [track for track in self.tracked_stracks if track.is_activated]
+        output_stracks = [np.append(track.track_id, track.tlwh) for track in self.tracked_stracks if track.is_activated]
 
         return output_stracks
 

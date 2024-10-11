@@ -1,4 +1,3 @@
-import cv2
 import numpy as np
 import scipy
 import lap
@@ -6,7 +5,7 @@ from scipy.spatial.distance import cdist
 
 from cython_bbox import bbox_overlaps as bbox_ious
 from . import kalman_filter
-import time
+
 
 def merge_matches(m1, m2, shape):
     O,P,Q = shape
@@ -58,19 +57,56 @@ def ious(atlbrs, btlbrs):
 
     :rtype ious np.ndarray
     """
-    ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float)
+    ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=float)
     if ious.size == 0:
         return ious
 
     ious = bbox_ious(
-        np.ascontiguousarray(atlbrs, dtype=np.float),
-        np.ascontiguousarray(btlbrs, dtype=np.float)
+        np.ascontiguousarray(atlbrs, dtype=float),
+        np.ascontiguousarray(btlbrs, dtype=float)
     )
 
     return ious
 
 
-def iou_distance(atracks, btracks):
+def giou_batch(bboxes1, bboxes2):
+    """
+    :param bbox_p: predict of bbox(N,4)(x1,y1,x2,y2)
+    :param bbox_g: groundtruth of bbox(N,4)(x1,y1,x2,y2)
+    :return:
+    """
+    if min(len(bboxes1), len(bboxes2)) == 0:
+        return np.zeros((len(bboxes1), len(bboxes2)), dtype=float)
+    # for details should go to https://arxiv.org/pdf/1902.09630.pdf
+    # ensure predict's bbox form
+    bboxes2 = np.expand_dims(bboxes2, 0)
+    bboxes1 = np.expand_dims(bboxes1, 1)
+
+    xx1 = np.maximum(bboxes1[..., 0], bboxes2[..., 0])
+    yy1 = np.maximum(bboxes1[..., 1], bboxes2[..., 1])
+    xx2 = np.minimum(bboxes1[..., 2], bboxes2[..., 2])
+    yy2 = np.minimum(bboxes1[..., 3], bboxes2[..., 3])
+    w = np.maximum(0., xx2 - xx1)
+    h = np.maximum(0., yy2 - yy1)
+    wh = w * h
+    union = ((bboxes1[..., 2] - bboxes1[..., 0]) * (bboxes1[..., 3] - bboxes1[..., 1])
+        + (bboxes2[..., 2] - bboxes2[..., 0]) * (bboxes2[..., 3] - bboxes2[..., 1]) - wh)
+    iou = wh / union
+
+    xxc1 = np.minimum(bboxes1[..., 0], bboxes2[..., 0])
+    yyc1 = np.minimum(bboxes1[..., 1], bboxes2[..., 1])
+    xxc2 = np.maximum(bboxes1[..., 2], bboxes2[..., 2])
+    yyc2 = np.maximum(bboxes1[..., 3], bboxes2[..., 3])
+    wc = xxc2 - xxc1
+    hc = yyc2 - yyc1
+    assert((wc > 0).all() and (hc > 0).all())
+    area_enclose = wc * hc
+    giou = iou - (area_enclose - union) / area_enclose
+    giou = (giou + 1.)/2.0 # resize from (-1,1) to (0,1)
+    return giou
+
+
+def iou_distance(atracks, btracks, giou=False):
     """
     Compute cost based on IoU
     :type atracks: list[STrack]
@@ -86,6 +122,8 @@ def iou_distance(atracks, btracks):
         atlbrs = [track.tlbr for track in atracks]
         btlbrs = [track.tlbr for track in btracks]
     _ious = ious(atlbrs, btlbrs)
+    if giou:
+        _ious = giou_batch(atlbrs, btlbrs)
     cost_matrix = 1 - _ious
 
     return cost_matrix
@@ -118,13 +156,13 @@ def embedding_distance(tracks, detections, metric='cosine'):
     :return: cost_matrix np.ndarray
     """
 
-    cost_matrix = np.zeros((len(tracks), len(detections)), dtype=np.float)
+    cost_matrix = np.zeros((len(tracks), len(detections)), dtype=float)
     if cost_matrix.size == 0:
         return cost_matrix
-    det_features = np.asarray([track.curr_feat for track in detections], dtype=np.float)
+    det_features = np.asarray([track.curr_feat for track in detections], dtype=float)
     #for i, track in enumerate(tracks):
         #cost_matrix[i, :] = np.maximum(0.0, cdist(track.smooth_feat.reshape(1,-1), det_features, metric))
-    track_features = np.asarray([track.smooth_feat for track in tracks], dtype=np.float)
+    track_features = np.asarray([track.smooth_feat for track in tracks], dtype=float)
     cost_matrix = np.maximum(0.0, cdist(track_features, det_features, metric))  # Nomalized features
     return cost_matrix
 

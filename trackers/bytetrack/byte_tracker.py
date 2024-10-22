@@ -165,6 +165,7 @@ class BYTETracker(object):
         self.removed_stracks = []  # type: list[STrack]
 
         self.frame_id = 0
+        STrack.init_id()
         self.args = args
         # self.det_thresh = args.track_thresh
         self.det_thresh = args.track_thresh + 0.1
@@ -240,8 +241,8 @@ class BYTETracker(object):
             H = self.gmc.applyCMC(image)
         STrack.multi_predict(strack_pool, H)
         dists = matching.iou_distance(strack_pool, detections)
-        # if not self.args.mot20:
-        #     dists = matching.fuse_score(dists, detections)
+        if not self.args.mot20:
+            dists = matching.fuse_score(dists, detections)
         matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args.match_thresh)
 
         for itracked, idet in matches:

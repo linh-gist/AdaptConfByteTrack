@@ -453,5 +453,44 @@ class MOTEvaluator:
         evaluate_results(train_dir, self.args.result_dir, seqs_train)
 
 
+def get_color(idx):
+    idx = (idx + 1) * 50
+    color = ((37 * idx) % 255, (17 * idx) % 255, (29 * idx) % 255)
+
+    return color
+
+
+def vdemo_from_rfile(rfile, img_folder):
+    tracks = np.loadtxt(rfile, delimiter=",")
+    # '{frame},{id},{top},{left},{w},{h},-1,-1,-1,-1\n'
+    files = sorted(glob.glob(img_folder + '/*.jpg'))
+    n_frames = len(files)
+    video_name = os.path.join(os.path.dirname(rfile), os.path.basename(rfile).split(".")[0] + ".mp4")
+    size = cv2.imread(files[0]).shape[0:2][::-1]
+    out = cv2.VideoWriter(video_name, cv2.VideoWriter_fourcc(*'mp4v'), 30, size)
+    for frame_id in range(n_frames):
+        img0 = cv2.imread(files[frame_id])
+        frame_tracks = tracks[tracks[:, 0] == frame_id + 1]
+        for tt in frame_tracks:
+            tlwh = tt[2:6]
+            tid = int(tt[1])
+            l, t = int(tlwh[0]), int(tlwh[1])
+            r, b = int(tlwh[0] + tlwh[2]), int(tlwh[1] + tlwh[3])
+            # cxy = (int(tlwh[0] + tlwh[2] / 2), int(tlwh[1] + tlwh[3] / 2))
+            # draw bbox
+            color = get_color(tid)
+            # img0 = cv2.circle(img0, cxy, radius=8, color=color, thickness=-1)
+            img0 = cv2.rectangle(img0, (l, t), (r, b), color=color, thickness=2)
+            img0 = cv2.putText(img0, str(tid), org=(l, t + 15), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.65,
+                               color=color, thickness=2)
+        cv2.imshow(rfile, img0)
+        cv2.waitKey(1)
+        out.write(img0)
+    out.release()
+
+
 if __name__ == "__main__":
-    mot17_eval()
+    # mot17_eval()
+    seq = "MOT16-02"
+    vdemo_from_rfile(f"results/bytetrack/bytetrack/{seq}.txt",
+                     f"/media/ubuntu/2715608D71CBF6FC/datasets/mot/MOT16/train/{seq}/img1/")

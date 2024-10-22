@@ -36,6 +36,10 @@ class BaseTrack(object):
         BaseTrack._count += 1
         return BaseTrack._count
 
+    @staticmethod
+    def init_id():
+        BaseTrack._count = 0
+
     def activate(self, *args):
         raise NotImplementedError
 

@@ -33,6 +33,9 @@ def write_results(filename, results):
 
 def write_results_no_score(filename, results):
     save_format = '{frame},{id},{x1},{y1},{w},{h},-1,-1,-1,-1\n'
+    directory = os.path.dirname(filename)  # Extract the directory path from the file path
+    if not os.path.exists(directory):  # Check if the directory exists
+        os.makedirs(directory)  # Create the directory if it doesn't exist
     with open(filename, 'w') as f:
         for frame_id, tlwhs, track_ids in results:
             for tlwh, track_id in zip(tlwhs, track_ids):
@@ -279,6 +282,28 @@ class MOTEvaluator:
             print("BYTETrack FPS: " + video_name, round(1.0 / (total_time / n_frames), 2))
         evaluate_results(train_dir, self.args.result_dir, seqs_train)
         evaluate_hota_trackeval(seqs_train, train_dir, self.args.result_dir)
+
+    def evaluate_BYTETrack_singclass(self, class_num, dets, img_files):
+        tracker = BYTETracker(self.args)
+        print("Starting tracking class num: ", class_num)
+        results = []
+        n_frames = int(np.amax(dets[:, 0]))
+        total_time = 0
+        for frame_id in range(n_frames):
+            img0 = cv2.imread(img_files[frame_id])
+            frame_bboxes = dets[dets[:, 0] == frame_id, :][:, 1:]
+            start = time.time()
+            online_targets = tracker.update(frame_bboxes, img0)
+            total_time += time.time() - start
+            online_tlwhs = []
+            online_ids = []
+            for t in online_targets:
+                tid, tlwh = int(t[0]), t[1:]
+                online_tlwhs.append(tlwh)
+                online_ids.append(tid)
+            results.append((frame_id + 1, class_num, online_tlwhs, online_ids))
+        print("BYTETrack FPS: ", round(1.0 / (total_time / n_frames), 2))
+        return results
 
     def evaluate_sort(self, dets_path):
         tracker = Sort(self.args.track_thresh)

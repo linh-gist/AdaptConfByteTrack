@@ -1,19 +1,48 @@
-# BYTETrack, OC-SORT, CMC (Camera Motion Compensation), HOTA Evaluation
-Source code for the paper "Adaptive Confidence Threshold for ByteTrack in Multi-Object Tracking"
+# Visual Multi-object Tracking Algorithms
 
-> [**Adaptive Confidence Threshold for ByteTrack in Multi-Object Tracking**](https://arxiv.org/abs/2312.01650),            
-> Linh Van Ma, Muhammad Ishfaq Hussain, JongHyun Park, Jeongbae Kim, Moongu Jeon,
-> ICCAIS 2023 (The 12th International Conference on Control, Automation and Information Sciences), November 27th to 29th, 2023 in Hanoi
+This is the official Python implementation repository for a paper entitled "Adaptive Confidence Threshold for ByteTrack in Multi-Object Tracking", *ICCAIS 2023 ([arXiv 2312.01650](https://arxiv.org/abs/2312.01650))*.
 
+    - BYTETrack
+    - OC-SORT
+    - FairMOT
+    - SORT
+    - CMC (Camera Motion Compensation) 
+    - HOTA Evaluation
 
-## How to run?
-    # Build cython_bbox
-    
-    python3 track.py
-    
-    # Detection files outputed from detectors
-    # Change detector => evaluate_fairmot("./detection/detector_cstrack")
-    # Change detector => evaluate_fairmot("./detection/bytetrack")
+### Usage
+1. **Set Up Python Environment**
+    - Create a `conda` Python environment and activate it:
+        ```sh
+        conda create --name virtualenv python==3.8.0
+        conda activate virtualenv
+        ```
+    - Clone this repository
+        ```sh
+        https://github.com/linh-gist/AdaptConfByteTrack.git
+        ```
+    - Install Packages
+        ```sh
+        numpy==1.23.1
+        opencv-python==4.9.0.80
+        loguru==0.7.2
+        scipy==1.10.1
+        lap==0.4.0
+        cython_bbox==0.1.5
+        matplotlib==3.5.3
+        filterpy==1.4.5
+        motmetrics==1.4.0
+        # git clone https://github.com/JonathonLuiten/TrackEval.git
+        # cd TrackEval, python setup.py build develop
+        ```
+
+2. **Prepare Data**
+    - Datasets: 
+        - MOT16, MOT17, MOT20
+        - You can also run with your custom dataset but need a detector
+
+3. **Run the Tracking Demo**
+   - Change parameters in `make_parser()` in `track.py` such as `use_gmc`, `data_dir` (MOTChallenge GT data)
+   - Run `python track.py`
 
 
 ### Citation
@@ -29,3 +58,6 @@ If you find this project useful in your research, please consider citing by:
   organization={IEEE}
 }
 ```
+
+## Acknowledgement
+A part of the code is borrowed from [ByteTrack](https://github.com/ifzhang/ByteTrack), [OC-SORT](https://github.com/noahcao/OC_SORT), [BoT-SORT](https://github.com/NirAharon/BoT-SORT), [FairMOT](https://github.com/ifzhang/FairMOT) and [SORT](https://github.com/abewley/sort). Thanks for their wonderful works.

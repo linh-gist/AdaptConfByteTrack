@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 from .kalman_filter import KalmanFilter
 from tracking_utils.log import logger
-from .utils import *
+# from .utils import *
 
 from . import matching
 

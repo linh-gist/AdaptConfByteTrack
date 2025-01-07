@@ -16,9 +16,9 @@ This is the official Python implementation repository for a paper entitled "Adap
         conda create --name virtualenv python==3.8.0
         conda activate virtualenv
         ```
-    - Clone this repository
+    - lone this repository recursively to have pybind11
         ```sh
-        https://github.com/linh-gist/AdaptConfByteTrack.git
+        git clone --recursive https://github.com/linh-gist/AdaptConfByteTrack.git
         ```
     - Install Packages
         ```sh
@@ -26,11 +26,12 @@ This is the official Python implementation repository for a paper entitled "Adap
         opencv-python==4.9.0.80
         loguru==0.7.2
         scipy==1.10.1
-        lap==0.4.0
+        lap==0.5.12
         cython_bbox==0.1.5
         matplotlib==3.5.3
         filterpy==1.4.5
         motmetrics==1.4.0
+        openpyxl==3.1.5
         # git clone https://github.com/JonathonLuiten/TrackEval.git
         # cd TrackEval, python setup.py build develop
         ```

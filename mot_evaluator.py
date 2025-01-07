@@ -1,6 +1,7 @@
 from loguru import logger
 
 from trackers.bytetrack.byte_tracker import BYTETracker
+from adaptbytetrack import BYTETracker
 from trackers.sort.sort import Sort
 # from trackers.ocsort_tracker.ocsort import OCSort
 from trackers.ocsort.ocsort import OCSort
@@ -203,7 +204,6 @@ class MOTEvaluator:
         self.show_image = args.show_image
 
     def evaluate_BYTETrack(self, dets_path):
-        tracker = BYTETracker(self.args)
         ori_thresh = self.args.track_thresh
 
         train_dir, test_dir, seqs_train, seqs_test = mot16(self.args.data_dir)
@@ -215,34 +215,34 @@ class MOTEvaluator:
             img_path = os.path.join(train_dir, video_name)
             files = sorted(glob.glob(osp.join(img_path, 'img1') + '/*.jpg'))
             total_time = 0
+            if video_name == 'MOT16-05' or video_name == 'MOT16-06':
+                self.args.track_buffer = 14
+            elif video_name == 'MOT16-13' or video_name == 'MOT16-14':
+                self.args.track_buffer = 25
+            else:
+                self.args.track_buffer = 30
+            if video_name == 'MOT16-01':
+                self.args.track_thresh = 0.65
+            elif video_name == 'MOT16-06':
+                self.args.track_thresh = 0.65
+            elif video_name == 'MOT16-12':
+                self.args.track_thresh = 0.7
+            elif video_name == 'MOT16-14':
+                self.args.track_thresh = 0.67
+            elif video_name in ['MOT20-06', 'MOT20-08']:
+                self.args.track_thresh = 0.3
+            else:
+                self.args.track_thresh = ori_thresh
+            tracker = BYTETracker(self.args)
+            # tracker = BYTETracker(self.args.track_buffer, self.args.track_buffer, self.args.track_thresh, self.args.match_thresh, self.args.use_gmc)
             for frame_id in range(n_frames):
-                if video_name == 'MOT16-05' or video_name == 'MOT16-06':
-                    self.args.track_buffer = 14
-                elif video_name == 'MOT16-13' or video_name == 'MOT16-14':
-                    self.args.track_buffer = 25
-                else:
-                    self.args.track_buffer = 30
-
-                if video_name == 'MOT16-01':
-                    self.args.track_thresh = 0.65
-                elif video_name == 'MOT16-06':
-                    self.args.track_thresh = 0.65
-                elif video_name == 'MOT16-12':
-                    self.args.track_thresh = 0.7
-                elif video_name == 'MOT16-14':
-                    self.args.track_thresh = 0.67
-                elif video_name in ['MOT20-06', 'MOT20-08']:
-                    self.args.track_thresh = 0.3
-                else:
-                    self.args.track_thresh = ori_thresh
-                if frame_id == 0:
-                    tracker = BYTETracker(self.args)
                 img0 = cv2.imread(files[frame_id])
 
                 frame_bboxes = dets[dets[:, 0] == frame_id, :][:, 1:]
                 # run tracking
                 start = time.time()
                 online_targets = tracker.update(frame_bboxes, img0)
+                # online_targets = tracker.update(frame_bboxes.tolist(), files[frame_id])
                 total_time += time.time() - start
                 online_tlwhs = []
                 online_ids = []

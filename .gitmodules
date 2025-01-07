@@ -4,3 +4,6 @@
 [submodule "matlab/export_fig"]
 	path = matlab/export_fig
 	url = https://github.com/altmany/export_fig.git
+[submodule "cppadaptbytetrack/pybind11"]
+	path = cppadaptbytetrack/pybind11
+	url = https://github.com/pybind/pybind11.git

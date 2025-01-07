@@ -7,7 +7,7 @@ Eigen::MatrixXf GlobalMotionCompensation::apply(const cv::Mat &frame_raw) {
     // Initialization
     int height = frame_raw.rows;
     int width = frame_raw.cols;
-    Eigen::MatrixXf H(2, 3);
+    Eigen::MatrixXf H = Eigen::MatrixXf::Zero(2, 3);
     H.setIdentity();
     cv::Mat frame;
     cv::cvtColor(frame_raw, frame, cv::COLOR_BGR2GRAY);
@@ -54,11 +54,10 @@ Eigen::MatrixXf GlobalMotionCompensation::apply(const cv::Mat &frame_raw) {
     // Estimate affine matrix
     if (prev_points.size() > 4) {
         cv::Mat homography = cv::estimateAffine2D(prev_points, curr_points);
-        for (int i = 0; i < homography.rows; ++i) {
-            for (int j = 0; j < homography.cols; ++j) {
-                H(i, j) = homography.at<double>(i, j);
-            }
-        }
+        //cv::Mat inliers;
+        //cv::Mat homography = cv::findHomography(prev_points, curr_points, cv::RANSAC, 3,inliers, 500, 0.99);
+        H << homography.at<double>(0, 0), homography.at<double>(0, 1), homography.at<double>(0, 2),
+                homography.at<double>(1, 0), homography.at<double>(1, 1), homography.at<double>(1, 2);
     }
     _prev_frame = frame.clone();
     return H;

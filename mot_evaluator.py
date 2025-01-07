@@ -1,7 +1,7 @@
 from loguru import logger
 
 from trackers.bytetrack.byte_tracker import BYTETracker
-from adaptbytetrack import BYTETracker
+# from adaptbytetrack import BYTETracker
 from trackers.sort.sort import Sort
 # from trackers.ocsort_tracker.ocsort import OCSort
 from trackers.ocsort.ocsort import OCSort

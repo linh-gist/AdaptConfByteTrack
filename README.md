@@ -32,6 +32,8 @@ This is the official Python implementation repository for a paper entitled "Adap
         filterpy==1.4.5
         motmetrics==1.4.0
         openpyxl==3.1.5
+        pycocotools==2.0.7
+        tabulate==0.9.0
         # git clone https://github.com/JonathonLuiten/TrackEval.git
         # cd TrackEval, python setup.py build develop
         ```

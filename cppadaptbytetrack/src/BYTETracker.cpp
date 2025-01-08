@@ -98,7 +98,7 @@ vector<vector<float>> BYTETracker::update(const vector<vector<float>> &objects, 
 			{
 				detections.push_back(strack);
 			}
-			else
+			else if (score > 0.1)
 			{
 				detections_low.push_back(strack);
 			}

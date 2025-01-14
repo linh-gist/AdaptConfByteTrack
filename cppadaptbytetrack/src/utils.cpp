@@ -199,6 +199,43 @@ vector<vector<float> > BYTETracker::ious(vector<vector<float> > &atlbrs, vector<
 	return ious;
 }
 
+vector<vector<float> > BYTETracker::gious(vector<vector<float> > &atlbrs, vector<vector<float> > &btlbrs) {
+    vector<vector<float> > gious;
+    if (atlbrs.size() * btlbrs.size() == 0)
+        return gious;
+
+    gious.resize(atlbrs.size());
+    for (int i = 0; i < gious.size(); i++) {
+        gious[i].resize(btlbrs.size());
+    }
+
+    //bbox_ious
+    for (int k = 0; k < btlbrs.size(); k++) {
+        float box_area = (btlbrs[k][2] - btlbrs[k][0] + 1) * (btlbrs[k][3] - btlbrs[k][1] + 1);
+        for (int n = 0; n < atlbrs.size(); n++) {
+            float iw = min(atlbrs[n][2], btlbrs[k][2]) - max(atlbrs[n][0], btlbrs[k][0]) + 1;
+            float union_area = (atlbrs[n][2] - atlbrs[n][0]) * (atlbrs[n][3] - atlbrs[n][1]) + box_area;
+            float _ious = 0.0;
+            if (iw > 0) {
+                float ih = min(atlbrs[n][3], btlbrs[k][3]) - max(atlbrs[n][1], btlbrs[k][1]) + 1;
+                if (ih > 0) {
+                    union_area = union_area - iw * ih;
+                    _ious = iw * ih / union_area;
+                }
+            }
+            // Smallest enclosing box
+            float enclosing_x1 = min(atlbrs[n][0], btlbrs[k][0]);
+            float enclosing_y1 = min(atlbrs[n][1], btlbrs[k][1]);
+            float enclosing_x2 = max(atlbrs[n][2], btlbrs[k][2]);
+            float enclosing_y2 = max(atlbrs[n][3], btlbrs[k][3]);
+            float enclosing_area = (enclosing_x2 - enclosing_x1) * (enclosing_y2 - enclosing_y1);
+            // GIoU calculation
+            gious[n][k] = _ious - (enclosing_area - union_area) / enclosing_area;
+        }
+    }
+    return gious;
+}
+
 vector<vector<float> > BYTETracker::iou_distance(vector<STrack*> &atracks, vector<STrack> &btracks, int &dist_size, int &dist_size_size)
 {
 	vector<vector<float> > cost_matrix;
@@ -222,7 +259,7 @@ vector<vector<float> > BYTETracker::iou_distance(vector<STrack*> &atracks, vecto
 	dist_size_size = btracks.size();
 
 	vector<vector<float> > _ious = ious(atlbrs, btlbrs);
-	
+
 	for (int i = 0; i < _ious.size();i++)
 	{
 		vector<float> _iou;
@@ -290,7 +327,7 @@ double BYTETracker::lapjv(const vector<vector<float> > &cost, vector<int> &rowso
 			exit(0);
 		}
 	}
-		
+
 	if (extend_cost || cost_limit < LONG_MAX)
 	{
 		n = n_rows + n_cols;

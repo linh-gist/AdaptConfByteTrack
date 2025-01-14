@@ -24,7 +24,12 @@ Include OpenCV headers
 2) Find where OpenCV is instsallted: `pkg-config --cflags opencv4`
 3) Change directory in [CMakeLists.txt](CMakeLists.txt) if needed `include_directories(/usr/include/opencv4/)`
 
-Build C++ Package: `python setup.py build develop`
+Build
+1) Build C++ Package to call from Python: `python setup.py build develop`
+2) Build to run directly from C++:  
+   you need to change path of detect files and images in [`main.cpp`](src%2Fmain.cpp)    
+   Comment all lines related to `pybind11` in [`CMakeLists.txt`](CMakeLists.txt) and [`main.cpp`](src%2Fmain.cpp), Uncomment `add_executable` in [`CMakeLists.txt`](CMakeLists.txt)     
+   Build: `mkdir build` > `cd build` > `cmake ..` > `cmake --build .` > and run it by `./adaptbytetrack`
 
 LICENCE
 =======

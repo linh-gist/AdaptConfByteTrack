@@ -177,22 +177,17 @@ class JDETracker(object):
         self.std = np.array([0.289, 0.274, 0.278], dtype=np.float32).reshape(1, 1, 3)
 
         self.kalman_filter = KalmanFilter()
+        logger.disabled = True
 
-    def update(self, npz_lines, i):  # , img_info, img_size):
+    def update(self, fdets, img):  # , img_info, img_size):
         self.frame_id += 1
         activated_starcks = []
         refind_stracks = []
         lost_stracks = []
         removed_stracks = []
-
-        try:
-            dets, id_feature = npz_lines[str(i) + '_det'], npz_lines[str(i) + '_feat']
-            remain_inds = dets[:, 4] > self.opt.track_thresh
-            dets = dets[remain_inds]
-            id_feature = id_feature[remain_inds]
-        except:
-            dets, id_feature = np.empty((0, 4)), np.empty((0, 128))  # no detection
-
+        #####
+        remain_inds = fdets[:, 4] > self.opt.track_thresh
+        dets, id_feature = fdets[remain_inds, 0:5], fdets[remain_inds, 5:]
         # vis
         '''
         for i in range(0, dets.shape[0]):

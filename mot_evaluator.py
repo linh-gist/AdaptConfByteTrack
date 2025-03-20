@@ -1,11 +1,6 @@
 from loguru import logger
 
 from trackers.bytetrack.byte_tracker import BYTETracker
-# from adaptbytetrack import BYTETracker
-from trackers.sort.sort import Sort
-# from trackers.ocsort_tracker.ocsort import OCSort
-from trackers.ocsort.ocsort import OCSort
-from trackers.fairmot.multitracker import JDETracker
 
 import os
 import numpy as np
@@ -16,7 +11,7 @@ import time
 from tracking_utils.evaluation import Evaluator
 import motmetrics as mm
 import trackeval
-
+import sys
 
 def write_results(filename, results):
     save_format = '{frame},{id},{x1},{y1},{w},{h},{s},-1,-1,-1\n'
@@ -79,8 +74,7 @@ def mot20(root):
     return train_dir, test_dir, seqs_train, seqs_test
 
 
-def mot17_eval(result_dir="./results/bytetrack"):
-    data_root = 'D:/dataset/tracking/mot'
+def mot17_evaluate(data_root, result_dir):
     train_dir, test_dir, seqs_train, seqs_test = mot17(data_root)
     seqs = ["02", "04", "05", "09", "10", "11", "13"]  # , "01", "03", "06", "07", "08", "12", "14"]
     sub_seqs = ["DPM", "SDP", "FRCNN"]
@@ -92,6 +86,11 @@ def mot17_eval(result_dir="./results/bytetrack"):
                 with open(output_file, "w") as f1:
                     for line in f:
                         f1.write(line)
+    # evaluate_motmetrics(train_dir, result_dir, seqs_train)
+    evaluate_trackeval(seqs_train, train_dir, result_dir)
+
+
+def evaluate_motmetrics(train_dir, result_dir, seqs_train):
     accs = []
     for seq in seqs_train:
         # eval
@@ -114,32 +113,8 @@ def mot17_eval(result_dir="./results/bytetrack"):
         f.write(strsummary)
 
 
-def evaluate_results(train_dir, result_dir, seqs_train):
-    accs = []
-    for seq in seqs_train:
-        # eval
-        logger.info('Evaluate seq: {}'.format(seq))
-        evaluator = Evaluator(train_dir, seq, 'mot')
-        accs.append(evaluator.eval_file(os.path.join(result_dir, seq + '.txt')))
-
-    # get summary
-    metrics = mm.metrics.motchallenge_metrics
-    mh = mm.metrics.create()
-    summary = Evaluator.get_summary(accs, seqs_train, metrics)
-    strsummary = mm.io.render_summary(
-        summary,
-        formatters=mh.formatters,
-        namemap=mm.io.motchallenge_metric_names
-    )
-    print(strsummary)
-    Evaluator.save_summary(summary, os.path.join(result_dir, 'summary_{}.xlsx'.format(seqs_train[0].split('-')[0])))
-    with open(os.path.join(result_dir, 'summary_{}.txt'.format(seqs_train[0].split('-')[0])), 'w') as f:
-        f.write(strsummary)
-
-
-def evaluate_hota_trackeval(seqs, gt_folder='./data/MOT16-train', trackers_folder='./results/'):
+def evaluate_trackeval(seqs, gt_folder, trackers_folder):
     output_folder = './results/'
-
     # List of sequences to evaluate
     sequences = {seq: None for seq in seqs}
     # sequences = {
@@ -161,7 +136,7 @@ def evaluate_hota_trackeval(seqs, gt_folder='./data/MOT16-train', trackers_folde
         'BENCHMARK': 'MOT16',  # The benchmark to use (e.g., 'MOT17', 'MOT20')
         # 'SPLIT_TO_EVAL': 'train',  # Which split to evaluate ('train', 'test')
         'SKIP_SPLIT_FOL': True,
-        'METRICS': ['HOTA'],  # Metrics to evaluate
+        'METRICS': ['CLEAR', 'HOTA', 'Identity'],  # Metrics to evaluate
         'OUTPUT_FOLDER': output_folder,
         'TRACKERS_FOLDER': trackers_folder,
         'GT_FOLDER': gt_folder,
@@ -183,105 +158,23 @@ def evaluate_hota_trackeval(seqs, gt_folder='./data/MOT16-train', trackers_folde
             raise ValueError(f"Dataset {dataset} is not supported in this example.")
 
     # Load metrics
-    metrics_list = []
-    for metric in eval_config['METRICS']:
-        if metric == 'HOTA':
-            metrics_list.append(trackeval.metrics.HOTA(eval_config))
-        else:
-            raise ValueError(f"Metric {metric} is not supported in this example.")
+    metrics_list = [trackeval.metrics.HOTA(eval_config), trackeval.metrics.CLEAR(eval_config),
+                    trackeval.metrics.Identity(eval_config)]
 
+    sys.stdout = open(os.devnull, 'w')  # Suppress print output
     # Run evaluation
     output_res, _ = evaluator.evaluate(dataset_list, metrics_list)
-
-    # Print the results
-    # for metric_res in output_res:
-    #     print(metric_res)
+    sys.stdout = sys.__stdout__  # Restore stdout
+    com_hota = np.average(output_res['MotChallenge2DBox']['']['COMBINED_SEQ']['pedestrian']['HOTA']['HOTA'])
+    com_mota = output_res['MotChallenge2DBox']['']['COMBINED_SEQ']['pedestrian']['CLEAR']['MOTA']
+    com_idf1 = output_res['MotChallenge2DBox']['']['COMBINED_SEQ']['pedestrian']['Identity']['IDF1']
+    print(trackers_folder, f"HOTA {com_hota} IDF1 {com_idf1} MOTA {com_mota}")
 
 
 class MOTEvaluator:
     def __init__(self, args):
         self.args = args
         self.show_image = args.show_image
-
-    def evaluate_BYTETrack(self, dets_path):
-        ori_thresh = self.args.track_thresh
-
-        train_dir, test_dir, seqs_train, seqs_test = mot16(self.args.data_dir)
-        for video_name in seqs_train:
-            print("Starting tracking sequence", video_name)
-            results = []
-            dets = np.load(dets_path + "/" + video_name + ".npy")
-            n_frames = int(np.amax(dets[:, 0]))
-            img_path = os.path.join(train_dir, video_name)
-            files = sorted(glob.glob(osp.join(img_path, 'img1') + '/*.jpg'))
-            total_time = 0
-            if video_name == 'MOT16-05' or video_name == 'MOT16-06':
-                self.args.track_buffer = 14
-            elif video_name == 'MOT16-13' or video_name == 'MOT16-14':
-                self.args.track_buffer = 25
-            else:
-                self.args.track_buffer = 30
-            if video_name == 'MOT16-01':
-                self.args.track_thresh = 0.65
-            elif video_name == 'MOT16-06':
-                self.args.track_thresh = 0.65
-            elif video_name == 'MOT16-12':
-                self.args.track_thresh = 0.7
-            elif video_name == 'MOT16-14':
-                self.args.track_thresh = 0.67
-            elif video_name in ['MOT20-06', 'MOT20-08']:
-                self.args.track_thresh = 0.3
-            else:
-                self.args.track_thresh = ori_thresh
-            tracker = BYTETracker(self.args)
-            # tracker = BYTETracker(self.args.track_buffer, self.args.track_buffer, self.args.track_thresh, self.args.match_thresh, self.args.use_gmc)
-            for frame_id in range(n_frames):
-                img0 = cv2.imread(files[frame_id])
-
-                frame_bboxes = dets[dets[:, 0] == frame_id, :][:, 1:]
-                # run tracking
-                start = time.time()
-                online_targets = tracker.update(frame_bboxes, img0)
-                # online_targets = tracker.update(frame_bboxes.tolist(), files[frame_id])
-                total_time += time.time() - start
-                online_tlwhs = []
-                online_ids = []
-                for t in online_targets:
-                    tid, tlwh = int(t[0]), t[1:]
-                    vertical = tlwh[2] / tlwh[3] > 1.6
-                    if tlwh[2] * tlwh[3] > self.args.min_box_area and not vertical:
-                        online_tlwhs.append(tlwh)
-                        online_ids.append(tid)
-                        # online_scores.append(t.score)
-                        if self.show_image:
-                            l, t = int(tlwh[0]), int(tlwh[1])
-                            r, b = int(tlwh[0] + tlwh[2]), int(tlwh[1] + tlwh[3])
-                            cxy = (int(tlwh[0] + tlwh[2] / 2), int(tlwh[1] + tlwh[3] / 2))
-                            # draw bbox
-                            img0 = cv2.circle(img0, cxy, radius=8, color=(255, 255, 255), thickness=-1)
-                            img0 = cv2.rectangle(img0, (l, t), (r, b), color=(255, 255, 255), thickness=2)
-                            img0 = cv2.putText(img0, str(tid), org=cxy, fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                                               fontScale=0.65,
-                                               color=(0, 255, 255), thickness=2)
-                # save results
-                results.append((frame_id + 1, online_tlwhs, online_ids))
-                if self.show_image:
-                    str_show = 'Adaptive Conf. (Frame {}'.format(frame_id) + ")"
-                    img0 = cv2.putText(img0, str_show, org=(img0.shape[1] - 450, 30), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                                       fontScale=1, color=(255, 0, 255), thickness=2)
-                    scale_percent = 0.6  # percent of original size
-                    dim = (int(img0.shape[1] * scale_percent), int(img0.shape[0] * scale_percent))
-                    resized = cv2.resize(img0, dim, interpolation=cv2.INTER_AREA)  # resize image
-                    cv2.imshow('Image', resized)
-                    cv2.moveWindow('Image', 200, 200)
-                    cv2.waitKey(1)
-                    cv2.imwrite("./results/images/" + str(frame_id) + ".jpg", img0)
-                if frame_id == n_frames - 1:
-                    result_filename = os.path.join(self.args.result_dir, '{}.txt'.format(video_name))
-                    write_results_no_score(result_filename, results)
-            print("BYTETrack FPS: " + video_name, round(1.0 / (total_time / n_frames), 2))
-        evaluate_results(train_dir, self.args.result_dir, seqs_train)
-        evaluate_hota_trackeval(seqs_train, train_dir, self.args.result_dir)
 
     def evaluate_BYTETrack_singclass(self, class_num, dets, img_files):
         tracker = BYTETracker(self.args)
@@ -305,140 +198,71 @@ class MOTEvaluator:
         print("BYTETrack FPS: ", round(1.0 / (total_time / n_frames), 2))
         return results
 
-    def evaluate_sort(self, dets_path):
-        tracker = Sort(self.args.track_thresh)
+    def evaluate_trackers(self, args, dets_path, tracker_name="SORT"):
+        ##########
         train_dir, test_dir, seqs_train, seqs_test = mot16(self.args.data_dir)
         for video_name in seqs_train:
+            ##################################################################################################
+            if tracker_name == "SORT":
+                from trackers.sort.sort import Sort
+                tracker = Sort(self.args.track_thresh)
+            elif tracker_name == "FairMOT":
+                from trackers.fairmot.multitracker import JDETracker
+                tracker = JDETracker(self.args)
+            elif tracker_name == "MOTDT":
+                from trackers.motdt.motdt_tracker import OnlineTracker
+                tracker = OnlineTracker()
+            elif tracker_name == "DeepOCSort":
+                from trackers.integrated_ocsort_embedding.ocsort import OCSort
+                tracker = OCSort(0.6)
+            elif tracker_name == "OCSort":
+                from trackers.ocsort.ocsort import OCSort
+                tracker = OCSort(det_thresh=args.track_thresh, iou_threshold=args.iou_thresh, asso_func=args.asso,
+                                 delta_t=args.deltat, inertia=args.inertia, use_byte=args.use_byte,
+                                 use_gmc=args.use_gmc)
+            elif tracker_name == "DeepSort":
+                from trackers.deepsort.deepsort import DeepSort
+                tracker = DeepSort(0.6)
+            elif tracker_name == "BYTETrack":
+                ori_thresh = self.args.track_thresh
+                if video_name == 'MOT16-05' or video_name == 'MOT16-06':
+                    self.args.track_buffer = 14
+                elif video_name == 'MOT16-13' or video_name == 'MOT16-14':
+                    self.args.track_buffer = 25
+                else:
+                    self.args.track_buffer = 30
+                if video_name == 'MOT16-01':
+                    self.args.track_thresh = 0.65
+                elif video_name == 'MOT16-06':
+                    self.args.track_thresh = 0.65
+                elif video_name == 'MOT16-12':
+                    self.args.track_thresh = 0.7
+                elif video_name == 'MOT16-14':
+                    self.args.track_thresh = 0.67
+                elif video_name in ['MOT20-06', 'MOT20-08']:
+                    self.args.track_thresh = 0.3
+                else:
+                    self.args.track_thresh = ori_thresh
+                tracker = BYTETracker(self.args)
+            else:
+                raise ValueError(f"Unknown tracker: {tracker_name}")
+            ##################################################################################################
             print("Starting tracking sequence", video_name)
             results = []
-            dets = np.load(dets_path + "/" + video_name + ".npy")
-            n_frames = int(np.amax(dets[:, 0]))
-            if self.show_image:
-                img_path = os.path.join(train_dir, video_name)
-                files = sorted(glob.glob(osp.join(img_path, 'img1') + '/*.jpg'))
-            total_time = 0
-            for frame_id in range(n_frames):
-                if self.show_image:
-                    img0 = cv2.imread(files[frame_id])
-                frame_bboxes = dets[dets[:, 0] == frame_id, :][:, 1:]
-                # run tracking
-                start = time.time()
-                online_targets = tracker.update(frame_bboxes)
-                total_time += time.time() - start
-                online_tlwhs = []
-                online_ids = []
-                for t in online_targets:
-                    tlwh = [t[0], t[1], t[2] - t[0], t[3] - t[1]]
-                    tid = int(t[4])
-                    vertical = tlwh[2] / tlwh[3] > 1.6
-                    if tlwh[2] * tlwh[3] > self.args.min_box_area and not vertical:
-                        online_tlwhs.append(tlwh)
-                        online_ids.append(tid)
-                        if self.show_image:
-                            l, t = int(tlwh[0]), int(tlwh[1])
-                            r, b = int(tlwh[0] + tlwh[2]), int(tlwh[1] + tlwh[3])
-                            cxy = (int(tlwh[0] + tlwh[2] / 2), int(tlwh[1] + tlwh[3] / 2))
-                            # draw bbox
-                            img0 = cv2.circle(img0, cxy, radius=8, color=(255, 255, 255), thickness=-1)
-                            img0 = cv2.rectangle(img0, (l, t), (r, b), color=(255, 255, 255), thickness=2)
-                            img0 = cv2.putText(img0, str(tid), org=cxy, fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                                               fontScale=0.65,
-                                               color=(0, 255, 255), thickness=2)
-                # save results
-                results.append((frame_id + 1, online_tlwhs, online_ids))
-                if self.show_image:
-                    str_show = 'Frame {}'.format(frame_id)
-                    img0 = cv2.putText(img0, str_show, org=(img0.shape[1] - 400, 30), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                                       fontScale=1, color=(255, 255, 255), thickness=2)
-                    scale_percent = 0.6  # percent of original size
-                    dim = (int(img0.shape[1] * scale_percent), int(img0.shape[0] * scale_percent))
-                    resized = cv2.resize(img0, dim, interpolation=cv2.INTER_AREA)  # resize image
-                    cv2.imshow('Image', resized)
-                    cv2.moveWindow('Image', 200, 200)
-                    cv2.waitKey(1)
-                if frame_id == n_frames - 1:
-                    result_filename = os.path.join(self.args.result_dir, '{}.txt'.format(video_name))
-                    write_results_no_score(result_filename, results)
-            print("SORT FPS: " + video_name, round(1.0 / (total_time / n_frames), 2))
-        evaluate_results(train_dir, self.args.result_dir, seqs_train)
-        evaluate_hota_trackeval(seqs_train, train_dir, self.args.result_dir)
-
-    def evaluate_ocsort(self, args, dets_path):
-        train_dir, test_dir, seqs_train, seqs_test = mot16(self.args.data_dir)
-        for video_name in seqs_train:
-            tracker = OCSort(det_thresh=args.track_thresh, iou_threshold=args.iou_thresh, asso_func=args.asso,
-                             delta_t=args.deltat, inertia=args.inertia, use_byte=args.use_byte, use_gmc=args.use_gmc)
-            print("Starting tracking sequence", video_name)
-            results = []
-            dets = np.load(dets_path + "/" + video_name + ".npy")
-            n_frames = int(np.amax(dets[:, 0]))
-            # if self.show_image:
+            npz_lines = np.load(dets_path + "/" + video_name + ".npz")
+            n_frames = int(len(npz_lines.files) / 2)
             img_path = os.path.join(train_dir, video_name)
             files = sorted(glob.glob(osp.join(img_path, 'img1') + '/*.jpg'))
-            total_time = 0
             for frame_id in range(n_frames):
-                # if self.show_image:
                 img0 = cv2.imread(files[frame_id])
-                frame_bboxes = dets[dets[:, 0] == frame_id, :][:, 1:]
+                # obtain detection for each frame
+                try:
+                    bboxs, reidfeat = npz_lines[str(frame_id) + '_det'], npz_lines[str(frame_id) + '_feat']
+                except:
+                    bboxs, reidfeat = np.empty((0, 4)), np.empty((0, 128))  # no detection
+                dets = np.column_stack((bboxs, reidfeat))
                 # run tracking
-                start = time.time()
-                online_targets = tracker.update(frame_bboxes, img0)
-                total_time += time.time() - start
-                online_tlwhs = []
-                online_ids = []
-                for t in online_targets:
-                    tlwh = [t[1], t[2], t[3], t[4]]
-                    tid = int(t[0])
-                    vertical = tlwh[2] / tlwh[3] > 1.6
-                    if tlwh[2] * tlwh[3] > self.args.min_box_area and not vertical:
-                        online_tlwhs.append(tlwh)
-                        online_ids.append(tid)
-                        if self.show_image:
-                            l, t = int(tlwh[0]), int(tlwh[1])
-                            r, b = int(tlwh[0] + tlwh[2]), int(tlwh[1] + tlwh[3])
-                            cxy = (int(tlwh[0] + tlwh[2] / 2), int(tlwh[1] + tlwh[3] / 2))
-                            # draw bbox
-                            img0 = cv2.circle(img0, cxy, radius=8, color=(255, 255, 255), thickness=-1)
-                            img0 = cv2.rectangle(img0, (l, t), (r, b), color=(255, 255, 255), thickness=2)
-                            img0 = cv2.putText(img0, str(tid), org=cxy, fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                                               fontScale=0.65,
-                                               color=(0, 255, 255), thickness=2)
-                # save results
-                results.append((frame_id + 1, online_tlwhs, online_ids))
-                if self.show_image:
-                    str_show = 'Frame {}'.format(frame_id)
-                    img0 = cv2.putText(img0, str_show, org=(img0.shape[1] - 400, 30),
-                                       fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                                       fontScale=1, color=(255, 255, 255), thickness=2)
-                    scale_percent = 0.6  # percent of original size
-                    dim = (int(img0.shape[1] * scale_percent), int(img0.shape[0] * scale_percent))
-                    resized = cv2.resize(img0, dim, interpolation=cv2.INTER_AREA)  # resize image
-                    cv2.imshow('Image', resized)
-                    cv2.moveWindow('Image', 200, 200)
-                    cv2.waitKey(1)
-                if frame_id == n_frames - 1:
-                    result_filename = os.path.join(self.args.result_dir, '{}.txt'.format(video_name))
-                    write_results_no_score(result_filename, results)
-            print("OCSORT FPS: " + video_name, round(1.0 / (total_time / n_frames), 2))
-        evaluate_results(train_dir, self.args.result_dir, seqs_train)
-        evaluate_hota_trackeval(seqs_train, train_dir, self.args.result_dir)
-
-    def evaluate_fairmot(self, dets_path):
-        tracker = JDETracker(self.args)
-        train_dir, test_dir, seqs_train, seqs_test = mot16(self.args.data_dir)
-        for video_name in seqs_train:
-            print("Starting tracking sequence", video_name)
-            results = []
-            dets = np.load(dets_path + "/" + video_name + ".npz")
-            n_frames = int(len(dets.files) / 2)
-            if self.show_image:
-                img_path = os.path.join(train_dir, video_name)
-                files = sorted(glob.glob(osp.join(img_path, 'img1') + '/*.jpg'))
-            for frame_id in range(n_frames):
-                if self.show_image:
-                    img0 = cv2.imread(files[frame_id])
-                # run tracking
-                online_targets = tracker.update(dets, frame_id)
+                online_targets = tracker.update(dets, img0)
                 online_tlwhs = []
                 online_ids = []
                 online_scores = []
@@ -461,7 +285,7 @@ class MOTEvaluator:
                                                fontScale=0.65,
                                                color=(0, 255, 255), thickness=2)
                 # save results
-                results.append((frame_id, online_tlwhs, online_ids))
+                results.append((frame_id + 1, online_tlwhs, online_ids))
                 if self.show_image:
                     str_show = 'Frame {}'.format(frame_id)
                     img0 = cv2.putText(img0, str_show, org=(img0.shape[1] - 400, 30), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
@@ -475,7 +299,12 @@ class MOTEvaluator:
                 if frame_id == n_frames - 1:
                     result_filename = os.path.join(self.args.result_dir, '{}.txt'.format(video_name))
                     write_results_no_score(result_filename, results)
-        evaluate_results(train_dir, self.args.result_dir, seqs_train)
+        # MOT16 Evaluation
+        # evaluate_motmetrics(train_dir, self.args.result_dir, seqs_train)
+        evaluate_trackeval(seqs_train, train_dir, self.args.result_dir)
+        # MOT17 Evaluation
+        mot17_evaluate(self.args.data_dir, self.args.result_dir)
+    ### END
 
 
 def get_color(idx):
@@ -515,7 +344,7 @@ def vdemo_from_rfile(rfile, img_folder):
 
 
 if __name__ == "__main__":
-    # mot17_eval()
-    seq = "MOT16-02"
-    vdemo_from_rfile(f"results/bytetrack/bytetrack/{seq}.txt",
-                     f"/media/ubuntu/2715608D71CBF6FC/datasets/mot/MOT16/train/{seq}/img1/")
+    mot17_evaluate("/media/ubuntu/2715608D71CBF6FC/datasets/mot", "./results/detector_cstrack/BYTETrack/")
+    # seq = "MOT16-02"
+    # vdemo_from_rfile(f"results/bytetrack/bytetrack/{seq}.txt",
+    #                  f"/media/ubuntu/2715608D71CBF6FC/datasets/mot/MOT16/train/{seq}/img1/")

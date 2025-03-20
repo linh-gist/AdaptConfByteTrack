@@ -349,7 +349,9 @@ def associate(
         if grid_off:
             emb_cost = None if (trk_embs.shape[0] == 0 or det_embs.shape[0] == 0) else det_embs @ trk_embs.T
         else:
-            emb_cost = split_cosine_dist(det_embs, trk_embs)
+            # emb_cost = split_cosine_dist(det_embs, trk_embs)
+            emb_cost = 1 - sp.distance.cdist(det_embs, trk_embs, "cosine")
+            emb_cost[emb_cost > 0.55] = 0  # affinity_thresh
 
     if min(iou_matrix.shape) > 0:
         a = (iou_matrix > iou_threshold).astype(np.int32)

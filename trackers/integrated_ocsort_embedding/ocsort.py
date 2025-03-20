@@ -7,8 +7,6 @@ import pdb
 import pickle
 
 import cv2
-import torch
-import torchvision
 
 import numpy as np
 from .association import *
@@ -329,6 +327,13 @@ ASSO_FUNCS = {
 }
 
 
+class Track:
+    def __init__(self, track_id, tlrb, score):
+        self.track_id = track_id
+        self.tlwh = [tlrb[0], tlrb[1], tlrb[2] - tlrb[0], tlrb[3] - tlrb[1]]
+        self.score = score
+
+
 class OCSort(object):
     def __init__(
         self,
@@ -343,7 +348,7 @@ class OCSort(object):
         alpha_fixed_emb=0.95,
         aw_param=0.5,
         embedding_off=False,
-        cmc_off=False,
+        cmc_off=True,
         aw_off=False,
         new_kf_off=False,
         grid_off=False,
@@ -366,15 +371,15 @@ class OCSort(object):
         self.aw_param = aw_param
         KalmanBoxTracker.count = 0
 
-        self.embedder = EmbeddingComputer(kwargs["args"].dataset, kwargs["args"].test_dataset, grid_off)
-        self.cmc = CMCComputer()
+        # self.embedder = EmbeddingComputer(kwargs["args"].dataset, kwargs["args"].test_dataset, grid_off)
+        # self.cmc = CMCComputer()
         self.embedding_off = embedding_off
         self.cmc_off = cmc_off
         self.aw_off = aw_off
         self.new_kf_off = new_kf_off
         self.grid_off = grid_off
 
-    def update(self, output_results, img_tensor, img_numpy, tag):
+    def update(self, fdets, img):
         """
         Params:
           dets - a numpy array of detections in the format [[x1,y1,x2,y2,score],[x1,y1,x2,y2,score],...]
@@ -382,31 +387,10 @@ class OCSort(object):
         Returns the a similar array, where the last column is the object ID.
         NOTE: The number of objects returned may differ from the number of detections provided.
         """
-        if output_results is None:
-            return np.empty((0, 5))
-        if not isinstance(output_results, np.ndarray):
-            output_results = output_results.cpu().numpy()
+        #####
+        remain_inds = fdets[:, 4] > self.det_thresh
+        dets, dets_embs = fdets[remain_inds, 0:5], fdets[remain_inds, 5:]
         self.frame_count += 1
-        if output_results.shape[1] == 5:
-            scores = output_results[:, 4]
-            bboxes = output_results[:, :4]
-        else:
-            output_results = output_results
-            scores = output_results[:, 4] * output_results[:, 5]
-            bboxes = output_results[:, :4]  # x1y1x2y2
-        dets = np.concatenate((bboxes, np.expand_dims(scores, axis=-1)), axis=1)
-        remain_inds = scores > self.det_thresh
-        dets = dets[remain_inds]
-
-        # Rescale
-        scale = min(img_tensor.shape[2] / img_numpy.shape[0], img_tensor.shape[3] / img_numpy.shape[1])
-        dets[:, :4] /= scale
-
-        # Generate embeddings
-        dets_embs = np.ones((dets.shape[0], 1))
-        if not self.embedding_off and dets.shape[0] != 0:
-            # Shape = (num detections, 3, 512) if grid
-            dets_embs = self.embedder.compute_embedding(img_numpy, dets[:, :4], tag)
 
         # CMC
         if not self.cmc_off:
@@ -516,14 +500,13 @@ class OCSort(object):
                 d = trk.last_observation[:4]
             if (trk.time_since_update < 1) and (trk.hit_streak >= self.min_hits or self.frame_count <= self.min_hits):
                 # +1 as MOT benchmark requires positive
-                ret.append(np.concatenate((d, [trk.id + 1])).reshape(1, -1))
+                # ret.append(np.concatenate((d, [trk.id + 1])).reshape(1, -1))
+                ret.append(Track(trk.id + 1, d, 1))
             i -= 1
             # remove dead tracklet
             if trk.time_since_update > self.max_age:
                 self.trackers.pop(i)
-        if len(ret) > 0:
-            return np.concatenate(ret)
-        return np.empty((0, 5))
+        return ret
 
     def dump_cache(self):
         self.cmc.dump_cache()

@@ -3,16 +3,9 @@ import numpy as np
 # from numba import jit
 from collections import OrderedDict, deque
 import itertools
-import os
-import cv2
-import torch
-from torch._C import dtype
-import torchvision
 
-from trackers.motdt_tracker import matching
+from . import matching
 from .kalman_filter import KalmanFilter
-from .reid_model import load_reid_model, extract_reid_features
-from yolox.data.dataloading import get_yolox_datadir
 
 from .basetrack import BaseTrack, TrackState
 
@@ -67,7 +60,7 @@ class STrack(BaseTrack):
         tlwh = self.tracker.predict(image) if self.tracker else self.tlwh
         return tlwh
 
-    def activate(self, kalman_filter, frame_id, image):
+    def activate(self, kalman_filter, frame_id):
         """Start a new tracklet"""
         self.kalman_filter = kalman_filter  # type: KalmanFilter
         self.track_id = self.next_id()
@@ -87,7 +80,7 @@ class STrack(BaseTrack):
         self.frame_id = frame_id
         self.start_frame = frame_id
 
-    def re_activate(self, new_track, frame_id, image, new_id=False):
+    def re_activate(self, new_track, frame_id, new_id=False):
         # self.mean, self.covariance = self.kalman_filter.initiate(self.tlwh_to_xyah(new_track.tlwh))
         self.mean, self.covariance = self.kalman_filter.update(
             self.mean, self.covariance, self.tlwh_to_xyah(new_track.tlwh)
@@ -103,7 +96,7 @@ class STrack(BaseTrack):
 
         self.set_feature(new_track.curr_feature)
 
-    def update(self, new_track, frame_id, image, update_feature=True):
+    def update(self, new_track, frame_id, update_feature=True):
         """
         Update a matched track
         :type new_track: STrack
@@ -128,8 +121,8 @@ class STrack(BaseTrack):
 
         if update_feature:
             self.set_feature(new_track.curr_feature)
-            if self.tracker:
-                self.tracker.update(image, self.tlwh)
+            # if self.tracker:
+            #     self.tracker.update(image, self.tlwh)
 
     @property
     # @jit
@@ -182,11 +175,10 @@ class STrack(BaseTrack):
 class OnlineTracker(object):
     def __init__(
         self,
-        model_folder,
         min_cls_score=0.4,
         min_ap_dist=0.8,
         max_time_lost=30,
-        use_tracking=True,
+        use_tracking=False,
         use_refind=True,
     ):
 
@@ -203,27 +195,15 @@ class OnlineTracker(object):
         self.use_refind = use_refind
         self.use_tracking = use_tracking
         self.classifier = None
-        self.reid_model = load_reid_model(model_folder)
+        # self.reid_model = load_reid_model(model_folder)
 
         self.frame_id = 0
 
-    def update(self, output_results, img_info, img_size, img_file_name):
-        img_file_name = os.path.join(get_yolox_datadir(), "mot", "train", img_file_name)
-        image = cv2.imread(img_file_name)
-        # post process detections
-        output_results = output_results.cpu().numpy()
-        confidences = output_results[:, 4] * output_results[:, 5]
-
-        bboxes = output_results[:, :4]  # x1y1x2y2
-        img_h, img_w = img_info[0], img_info[1]
-        scale = min(img_size[0] / float(img_h), img_size[1] / float(img_w))
-        bboxes /= scale
-        bbox_xyxy = bboxes
-        tlwhs = self._xyxy_to_tlwh_array(bbox_xyxy)
-        remain_inds = confidences > self.min_cls_score
-        tlwhs = tlwhs[remain_inds]
-        det_scores = confidences[remain_inds]
-
+    def update(self, fdets, img):
+        #####
+        remain_inds = fdets[:, 4] > self.min_cls_score
+        dets, det_scores, features = fdets[remain_inds, 0:4], fdets[remain_inds, 4], fdets[remain_inds, 5:]
+        tlwhs = self._xyxy_to_tlwh_array(dets)
         self.frame_id += 1
 
         activated_starcks = []
@@ -241,36 +221,15 @@ class OnlineTracker(object):
         detections = [STrack(tlwh, score, from_det=True) for tlwh, score in zip(tlwhs, det_scores)]
         if self.use_tracking:
             tracks = [
-                STrack(t.self_tracking(image), 0.6 * t.tracklet_score(), from_det=False)
+                STrack(t.tlwh, 0.6 * t.tracklet_score(), from_det=False)
                 for t in itertools.chain(self.tracked_stracks, self.lost_stracks)
                 if t.is_activated
             ]
             detections.extend(tracks)
-        rois = np.asarray([d.tlbr for d in detections], dtype=np.float32)
-        scores = np.asarray([d.score for d in detections], dtype=np.float32)
-        # nms
-        if len(detections) > 0:
-            nms_out_index = torchvision.ops.batched_nms(
-                torch.from_numpy(rois),
-                torch.from_numpy(scores.reshape(-1)).to(torch.from_numpy(rois).dtype),
-                torch.zeros_like(torch.from_numpy(scores.reshape(-1))),
-                0.7,
-            )
-            keep = nms_out_index.numpy()
-            mask = np.zeros(len(rois), dtype=np.bool)
-            mask[keep] = True
-            keep = np.where(mask & (scores >= self.min_cls_score))[0]
-            detections = [detections[i] for i in keep]
-            scores = scores[keep]
-            for d, score in zip(detections, scores):
-                d.score = score
         pred_dets = [d for d in detections if not d.from_det]
         detections = [d for d in detections if d.from_det]
 
         # set features
-        tlbrs = [det.tlbr for det in detections]
-        features = extract_reid_features(self.reid_model, image, tlbrs)
-        features = features.cpu().numpy()
         for i, det in enumerate(detections):
             det.set_feature(features[i])
 
@@ -288,7 +247,7 @@ class OnlineTracker(object):
         dists = matching.gate_cost_matrix(self.kalman_filter, dists, tracked_stracks, detections)
         matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.min_ap_dist)
         for itracked, idet in matches:
-            tracked_stracks[itracked].update(detections[idet], self.frame_id, image)
+            tracked_stracks[itracked].update(detections[idet], self.frame_id)
 
         # matching for missing targets
         detections = [detections[i] for i in u_detection]
@@ -298,7 +257,7 @@ class OnlineTracker(object):
         for ilost, idet in matches:
             track = self.lost_stracks[ilost]  # type: STrack
             det = detections[idet]
-            track.re_activate(det, self.frame_id, image, new_id=not self.use_refind)
+            track.re_activate(det, self.frame_id, new_id=not self.use_refind)
             refind_stracks.append(track)
 
         # remaining tracked
@@ -307,9 +266,9 @@ class OnlineTracker(object):
         detections = [detections[i] for i in u_detection] + pred_dets
         r_tracked_stracks = [tracked_stracks[i] for i in u_track]
         dists = matching.iou_distance(r_tracked_stracks, detections)
-        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=0.5)
+        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=0.7)
         for itracked, idet in matches:
-            r_tracked_stracks[itracked].update(detections[idet], self.frame_id, image, update_feature=True)
+            r_tracked_stracks[itracked].update(detections[idet], self.frame_id, update_feature=True)
         for it in u_track:
             track = r_tracked_stracks[it]
             track.mark_lost()
@@ -320,7 +279,7 @@ class OnlineTracker(object):
         dists = matching.iou_distance(unconfirmed, detections)
         matches, u_unconfirmed, u_detection = matching.linear_assignment(dists, thresh=0.7)
         for itracked, idet in matches:
-            unconfirmed[itracked].update(detections[idet], self.frame_id, image, update_feature=True)
+            unconfirmed[itracked].update(detections[idet], self.frame_id, update_feature=True)
         for it in u_unconfirmed:
             track = unconfirmed[it]
             track.mark_removed()
@@ -331,7 +290,7 @@ class OnlineTracker(object):
             track = detections[inew]
             if not track.from_det or track.score < 0.6:
                 continue
-            track.activate(self.kalman_filter, self.frame_id, image)
+            track.activate(self.kalman_filter, self.frame_id)
             activated_starcks.append(track)
 
         """step 6: update state"""

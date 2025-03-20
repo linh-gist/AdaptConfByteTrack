@@ -30,30 +30,12 @@ def make_parser():
 
 
 if __name__ == "__main__":
-    # import cv2
-    # import glob
-    # import os.path as osp
-    # import numpy as np
-    # fixedfiles = sorted(glob.glob('./results/images_fixed/*.jpg'))
-    # adaptfiles = sorted(glob.glob('./results/images/*.jpg'))
-    # for ii, (adapt, fixed) in enumerate(zip(adaptfiles, fixedfiles)):
-    #     im_adapt = cv2.imread(adapt)
-    #     im_fixed = cv2.imread(fixed)
-    #     concat = np.concatenate((im_adapt, im_fixed), axis=1)
-    #     cv2.imwrite("./results/images_results/" + str(ii)+".jpg", concat)
-
     args = make_parser().parse_args()
     evaluator = MOTEvaluator(args)
-    for det in ["bytetrack"]:
-        #
-        args.result_dir = "./results/{}/bytetrack".format(det)
-        evaluator.evaluate_BYTETrack("./detection/{}/".format(det))
-        #
-        # args.result_dir = "./results/{}/sort".format(det)
-        # evaluator.evaluate_sort("./detection/{}/".format(det))
-        #
-        args.result_dir = "./results/{}/ocsort".format(det)
-        evaluator.evaluate_ocsort(args, "./detection/{}/".format(det))
-
-    # evaluator.evaluate_sort("./detection/bytetrack")
-    # evaluator.evaluate_fairmot("./detection/detector_cstrack")
+    for detector in ["detector_bytetrack", "detector_cstrack", "detector_fairmot128", "detector_fairmot256",
+                     "detector_gsdt", "detector_jde", "detector_poi", "detector_trades"]:
+        for tracker in ["SORT", "OCSort", "MOTDT", "MOTDT", "DeepOCSort", "DeepSort", "BYTETrack"]:
+            print(f"#################### {detector} #################### {tracker} ####################")
+            args.result_dir = f"./results/{detector}/{tracker}"
+            evaluator.evaluate_trackers(args, f"./dets/{detector}", tracker)
+    ###############

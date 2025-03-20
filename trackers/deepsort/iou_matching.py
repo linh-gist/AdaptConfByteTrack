@@ -1,7 +1,7 @@
 # vim: expandtab:ts=4:sw=4
 from __future__ import absolute_import
 import numpy as np
-from trackers.deepsort_tracker import linear_assignment
+from . import linear_assignment
 
 
 def iou(bbox, candidates):

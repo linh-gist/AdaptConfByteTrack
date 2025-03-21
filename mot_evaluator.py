@@ -205,16 +205,16 @@ class MOTEvaluator:
             ##################################################################################################
             if tracker_name == "SORT":
                 from trackers.sort.sort import Sort
-                tracker = Sort(self.args.track_thresh)
+                tracker = Sort(det_thresh=self.args.track_thresh)
             elif tracker_name == "FairMOT":
                 from trackers.fairmot.multitracker import JDETracker
                 tracker = JDETracker(self.args)
             elif tracker_name == "MOTDT":
                 from trackers.motdt.motdt_tracker import OnlineTracker
-                tracker = OnlineTracker()
+                tracker = OnlineTracker(min_cls_score=self.args.track_thresh)
             elif tracker_name == "DeepOCSort":
                 from trackers.integrated_ocsort_embedding.ocsort import OCSort
-                tracker = OCSort(0.6)
+                tracker = OCSort(det_thresh=self.args.track_thresh)
             elif tracker_name == "OCSort":
                 from trackers.ocsort.ocsort import OCSort
                 tracker = OCSort(det_thresh=args.track_thresh, iou_threshold=args.iou_thresh, asso_func=args.asso,
@@ -222,7 +222,7 @@ class MOTEvaluator:
                                  use_gmc=args.use_gmc)
             elif tracker_name == "DeepSort":
                 from trackers.deepsort.deepsort import DeepSort
-                tracker = DeepSort(0.6)
+                tracker = DeepSort(min_confidence=self.args.track_thresh)
             elif tracker_name == "BYTETrack":
                 ori_thresh = self.args.track_thresh
                 if video_name == 'MOT16-05' or video_name == 'MOT16-06':

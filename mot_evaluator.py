@@ -244,6 +244,9 @@ class MOTEvaluator:
                 else:
                     self.args.track_thresh = ori_thresh
                 tracker = BYTETracker(self.args)
+            elif tracker_name == "LMB":
+                from trackers.joint_lmb.joint_lmb import LMB
+                tracker = LMB(track_thresh=self.args.track_thresh, use_feat=True)
             else:
                 raise ValueError(f"Unknown tracker: {tracker_name}")
             ##################################################################################################

@@ -28,9 +28,9 @@ def make_parser():
 if __name__ == "__main__":
     args = make_parser().parse_args()
     evaluator = MOTEvaluator(args)
-    for detector in ["detector_cstrack", "detector_fairmot128", "detector_fairmot256",
-                     "detector_gsdt", "detector_jde", "detector_poi", "detector_trades"]:
-        for tracker in ["SORT", "FairMOT", "MOTDT", "DeepOCSort", "OCSort", "DeepSort", "BYTETrack"]:
+    for detector in ['detector_poi', 'detector_trades', 'detector_gsdt', 'detector_jde', 'detector_cstrack',
+                     'detector_fairmot128', 'detector_bytetrack', 'detectors_yolov11']:
+        for tracker in ['SORT', 'BYTETrack', 'OCSort', 'DeepSort', 'MOTDT', 'FairMOT', 'DeepOCSort', 'LMB']:
             print(f"#################### {detector} #################### {tracker} ####################")
             args.result_dir = f"./results/{detector}/{tracker}"
             evaluator.evaluate_trackers(args, f"./dets/{detector}", tracker)

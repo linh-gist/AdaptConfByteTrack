@@ -188,6 +188,13 @@ def associate_detections_to_trackers(detections, trackers, iou_threshold=0.3):
     return matches, np.array(unmatched_detections), np.array(unmatched_trackers)
 
 
+class Track:
+    def __init__(self, track_id, tlrb, score):
+        self.track_id = track_id
+        self.tlwh = [tlrb[0], tlrb[1], tlrb[2] - tlrb[0], tlrb[3] - tlrb[1]]
+        self.score = score
+
+
 class Sort(object):
     def __init__(self, det_thresh, max_age=30, min_hits=3, iou_threshold=0.3):
         """
@@ -200,7 +207,7 @@ class Sort(object):
         self.frame_count = 0
         self.det_thresh = det_thresh
 
-    def update(self, output_results):  # , img_info, img_size):
+    def update(self, fdets, img):  # , img_info, img_size):
         """
         Params:
           dets - a numpy array of detections in the format [[x1,y1,x2,y2,score],[x1,y1,x2,y2,score],...]
@@ -209,16 +216,9 @@ class Sort(object):
         NOTE: The number of objects returned may differ from the number of detections provided.
         """
         self.frame_count += 1
-        # post_process detections
-        # output_results = output_results.cpu().numpy()
-        scores = output_results[:, 4]  # * output_results[:, 5]
-        bboxes = output_results[:, :4]  # x1y1x2y2
-        # img_h, img_w = img_info[0], img_info[1]
-        # scale = min(img_size[0] / float(img_h), img_size[1] / float(img_w))
-        # bboxes /= scale
-        dets = np.concatenate((bboxes, np.expand_dims(scores, axis=-1)), axis=1)
-        remain_inds = scores > self.det_thresh
-        dets = dets[remain_inds]
+        #####
+        remain_inds = fdets[:, 4] > self.det_thresh
+        dets = fdets[remain_inds, 0:5]
         # get predicted locations from existing trackers.
         trks = np.zeros((len(self.trackers), 5))
         to_del = []
@@ -245,11 +245,12 @@ class Sort(object):
         for trk in reversed(self.trackers):
             d = trk.get_state()[0]
             if (trk.time_since_update < 1) and (trk.hit_streak >= self.min_hits or self.frame_count <= self.min_hits):
-                ret.append(np.concatenate((d, [trk.id + 1])).reshape(1, -1))  # +1 as MOT benchmark requires positive
+                # ret.append(np.concatenate((d, [trk.id + 1])).reshape(1, -1))  # +1 as MOT benchmark requires positive
+                ret.append(Track(trk.id + 1, d, 1))
             i -= 1
             # remove dead tracklet
             if (trk.time_since_update > self.max_age):
                 self.trackers.pop(i)
-        if (len(ret) > 0):
-            return np.concatenate(ret)
-        return np.empty((0, 5))
+        # if (len(ret) > 0):
+        #     return np.concatenate(ret)
+        return ret  # np.empty((0, 5))

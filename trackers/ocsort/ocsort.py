@@ -193,6 +193,13 @@ ASSO_FUNCS = {"iou": iou_batch,
               "ct_dist": ct_dist}
 
 
+class Track:
+    def __init__(self, track_id, tlrb, score):
+        self.track_id = track_id
+        self.tlwh = [tlrb[0], tlrb[1], tlrb[2] - tlrb[0], tlrb[3] - tlrb[1]]
+        self.score = score
+
+
 class OCSort(object):
     def __init__(self, det_thresh, max_age=30, min_hits=3,
                  iou_threshold=0.3, delta_t=3, asso_func="iou", inertia=0.2, use_byte=True, use_gmc=True):
@@ -213,7 +220,7 @@ class OCSort(object):
         self.gmc = GMC(method="cmc", verbose=None)
         self.use_gmc = use_gmc
 
-    def update(self, output_results, frame):
+    def update(self, fdets, frame):
         """
         Params:
           dets - a numpy array of detections in the format [[x1,y1,x2,y2,score],[x1,y1,x2,y2,score],...]
@@ -221,21 +228,8 @@ class OCSort(object):
         Returns the a similar array, where the last column is the object ID.
         NOTE: The number of objects returned may differ from the number of detections provided.
         """
-        if output_results is None:
-            return np.empty((0, 5))
-
-        self.frame_count += 1
-        # post_process detections
-        if output_results.shape[1] == 5:
-            scores = np.sort(output_results[:, 4])[::-1]
-            bboxes = output_results[:, :4]
-        else:
-            output_results = output_results.cpu().numpy()
-            scores = output_results[:, 4] * output_results[:, 5]
-            bboxes = output_results[:, :4]  # x1y1x2y2
-        # img_h, img_w = img_info[0], img_info[1]
-        # scale = min(img_size[0] / float(img_h), img_size[1] / float(img_w))
-        # bboxes /= scale
+        #####
+        bboxes, scores = fdets[:, 0:4], fdets[:, 4]
         dets = np.concatenate((bboxes, np.expand_dims(scores, axis=-1)), axis=1)
         inds_low = scores > 0.1
         if len(scores) > 1:
@@ -349,12 +343,9 @@ class OCSort(object):
                 d = trk.last_observation[:4]
             if (trk.time_since_update < 1) and (trk.hit_streak >= self.min_hits or self.frame_count <= self.min_hits):
                 # +1 as MOT benchmark requires positive
-                tlwh = [d[0], d[1], d[2] - d[0], d[3] - d[1]]
-                ret.append(np.concatenate(([trk.id + 1], tlwh)).reshape(1, -1))
+                ret.append(Track(trk.id + 1, d, 1))
             i -= 1
             # remove dead tracklet
             if (trk.time_since_update > self.max_age):
                 self.trackers.pop(i)
-        if (len(ret) > 0):
-            return np.concatenate(ret)
-        return np.empty((0, 5))
+        return ret

@@ -5,6 +5,7 @@
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
+
 typedef Eigen::Matrix<float, 1, 4, Eigen::RowMajor> DETECTBOX;
 typedef Eigen::Matrix<float, -1, 4, Eigen::RowMajor> DETECTBOXSS;
 typedef Eigen::Matrix<float, 1, 128, Eigen::RowMajor> FEATURE;
@@ -27,10 +28,10 @@ using RESULT_DATA = std::pair<int, DETECTBOX>;
 using TRACKER_DATA = std::pair<int, FEATURESS>;
 using MATCH_DATA = std::pair<int, int>;
 typedef struct t {
-	std::vector<MATCH_DATA> matches;
-	std::vector<int> unmatched_tracks;
-	std::vector<int> unmatched_detections;
-}TRACHER_MATCHD;
+    std::vector <MATCH_DATA> matches;
+    std::vector<int> unmatched_tracks;
+    std::vector<int> unmatched_detections;
+} TRACHER_MATCHD;
 
 //linear_assignment:
 typedef Eigen::Matrix<float, -1, -1, Eigen::RowMajor> DYNAMICM;

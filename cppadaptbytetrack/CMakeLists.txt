@@ -34,19 +34,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 add_subdirectory(pybind11)
 pybind11_add_module(adaptbytetrack
-        src/main.cpp
-        src/kalmanFilter.cpp
-        src/lapjv.cpp
-        src/STrack.cpp
-        src/utils.cpp
+    src/main.cpp
+    src/kalmanFilter.cpp
+    src/lapjv.cpp
+    src/STrack.cpp
+    src/utils.cpp
 )
 
 #add_executable(adaptbytetrack
-#        src/main.cpp
-#        src/kalmanFilter.cpp
-#        src/lapjv.cpp
-#        src/STrack.cpp
-#        src/utils.cpp
+#    src/main.cpp
+#    src/kalmanFilter.cpp
+#    src/lapjv.cpp
+#    src/STrack.cpp
+#    src/utils.cpp
 #)
 
 target_include_directories(${PROJECT_NAME} PUBLIC

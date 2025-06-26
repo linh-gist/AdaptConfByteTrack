@@ -2,7 +2,19 @@
 
 GlobalMotionCompensation::~GlobalMotionCompensation() {}
 
-// Affine Motion Estimation or Affine Global Motion Estimation using Sparse Optical Flow
+/**
+ * @brief Applies global motion compensation to align the current frame with the previous frame.
+ *
+ * This function estimates the global motion between the current frame and the previous frame using keypoint detection and (Sparse) optical flow.
+ * It computes an affine transformation matrix to compensate for camera motion, returning a 2x3 matrix representing the transformation.
+ * The function handles initialization for the first frame, downscaling for execution time efficiency, and robust matching to ensure reliable motion estimation.
+ * The result is used to compensate predicted motion of an object.
+ *
+ * @param frame_raw The input frame (BGR color image) to be processed for motion compensation.
+ *
+ * @return A 2x3 Eigen::MatrixXf representing the affine transformation matrix to align the current frame with the previous frame.
+ *         Returns an identity matrix if no motion estimation is possible (first frame or insufficient matches).
+ */
 Eigen::MatrixXf GlobalMotionCompensation::apply(const cv::Mat &frame_raw) {
     // Initialization
     int height = frame_raw.rows;
@@ -28,12 +40,12 @@ Eigen::MatrixXf GlobalMotionCompensation::apply(const cv::Mat &frame_raw) {
         return H;
     }
     // Detect keypoints
-    std::vector<cv::Point2f> prev_pts;
+    std::vector <cv::Point2f> prev_pts;
     cv::goodFeaturesToTrack(_prev_frame, prev_pts, 200, 0.01, 30, cv::noArray(), 3);
 
     // Find correspondences between the previous and current frame
-    std::vector<cv::Point2f> matched_keypoints;
-    std::vector<uchar> status;
+    std::vector <cv::Point2f> matched_keypoints;
+    std::vector <uchar> status;
     std::vector<float> err;
     try {
         cv::calcOpticalFlowPyrLK(_prev_frame, frame, prev_pts, matched_keypoints, status, err);
@@ -44,7 +56,7 @@ Eigen::MatrixXf GlobalMotionCompensation::apply(const cv::Mat &frame_raw) {
         return H;
     }
     // Keep good matches
-    std::vector<cv::Point2f> prev_points, curr_points;
+    std::vector <cv::Point2f> prev_points, curr_points;
     for (size_t i = 0; i < matched_keypoints.size(); i++) {
         if (status[i]) {
             prev_points.push_back(prev_pts[i]);

@@ -41,6 +41,14 @@ pybind11_add_module(adaptbytetrack
     src/utils.cpp
 )
 
+#add_executable(adaptbytetrack
+#    src/main.cpp
+#    src/kalmanFilter.cpp
+#    src/lapjv.cpp
+#    src/STrack.cpp
+#    src/utils.cpp
+#)
+
 target_include_directories(${PROJECT_NAME} PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )

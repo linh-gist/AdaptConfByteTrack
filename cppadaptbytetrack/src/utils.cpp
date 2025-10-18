@@ -236,6 +236,59 @@ vector <vector<float>> BYTETracker::ious(vector <vector<float>> &atlbrs, vector 
 }
 
 /**
+ * @brief Computes Generalized Intersection over Union (GIoU) matrix for two sets of bounding boxes.
+ *
+ * This function calculates the IoU between pairs of bounding boxes from two sets, represented in top-left-bottom-right (tlbr) format.
+ * GIoU is a similarity metric used to measure the overlap between bounding boxes, to associate detections with tracks.
+ *
+ * @param atlbrs Vector of bounding boxes (e.g., existing tracks).
+ * @param btlbrs Vector of bounding boxes (e.g., new detections).
+ *
+ * @return A 2D vector representing the GIoU matrix, where element [i][j] is the IoU between atlbrs[i] and btlbrs[j].
+ *         Returns an empty matrix if either input is empty.
+ */
+vector<vector<float>> BYTETracker::gious(vector<vector<float>> &atlbrs, vector<vector<float>> &btlbrs) {
+    vector<vector<float>> gious;
+    if (atlbrs.empty() || btlbrs.empty())
+        return gious;
+
+    gious.resize(atlbrs.size(), vector<float>(btlbrs.size(), 0.0f));
+
+    for (int i = 0; i < atlbrs.size(); ++i) {
+        float x1_a = atlbrs[i][0], y1_a = atlbrs[i][1];
+        float x2_a = atlbrs[i][2], y2_a = atlbrs[i][3];
+        float area_a = (x2_a - x1_a + 1) * (y2_a - y1_a + 1);
+
+        for (int j = 0; j < btlbrs.size(); ++j) {
+            float x1_b = btlbrs[j][0], y1_b = btlbrs[j][1];
+            float x2_b = btlbrs[j][2], y2_b = btlbrs[j][3];
+            float area_b = (x2_b - x1_b + 1) * (y2_b - y1_b + 1);
+
+            // Intersection
+            float inter_w = max(0.0f, min(x2_a, x2_b) - max(x1_a, x1_b) + 1);
+            float inter_h = max(0.0f, min(y2_a, y2_b) - max(y1_a, y1_b) + 1);
+            float inter_area = inter_w * inter_h;
+            // Union
+            float union_area = area_a + area_b - inter_area;
+            // IoU
+            float iou = (union_area > 0) ? inter_area / union_area : 0.0f;
+            // Smallest enclosing box (for GIoU)
+            float x1_c = min(x1_a, x1_b);
+            float y1_c = min(y1_a, y1_b);
+            float x2_c = max(x2_a, x2_b);
+            float y2_c = max(y2_a, y2_b);
+            float convex_area = (x2_c - x1_c + 1) * (y2_c - y1_c + 1);
+            // GIoU
+            float giou = iou - (convex_area - union_area) / convex_area;
+            giou = (giou + 1.0)/2.0; // resize from (-1,1) to (0,1)
+            gious[i][j] = giou;
+        }
+    }
+
+    return gious;
+}
+
+/**
  * @brief Computes the IoU-based distance matrix between two sets of tracks.
  *
  * This function calculates the Intersection over Union (IoU) distance between two sets of tracks using their bounding boxes.
@@ -251,7 +304,7 @@ vector <vector<float>> BYTETracker::ious(vector <vector<float>> &atlbrs, vector 
  *         between atracks[i] and btracks[j]. Returns empty matrix if either input is empty.
  */
 vector <vector<float>>
-BYTETracker::iou_distance(vector<STrack *> &atracks, vector <STrack> &btracks, int &dist_size, int &dist_size_size) {
+BYTETracker::iou_distance(vector<STrack *> &atracks, vector <STrack> &btracks, int &dist_size, int &dist_size_size, bool giou) {
     vector <vector<float>> cost_matrix;
     if (atracks.size() * btracks.size() == 0) {
         dist_size = atracks.size();
@@ -269,7 +322,7 @@ BYTETracker::iou_distance(vector<STrack *> &atracks, vector <STrack> &btracks, i
     dist_size = atracks.size();
     dist_size_size = btracks.size();
 
-    vector <vector<float>> _ious = ious(atlbrs, btlbrs);
+    vector <vector<float>> _ious = giou? gious(atlbrs, btlbrs) : ious(atlbrs, btlbrs);
 
     for (int i = 0; i < _ious.size(); i++) {
         vector<float> _iou;

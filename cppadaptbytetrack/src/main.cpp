@@ -66,6 +66,31 @@ MatrixXd read_txt(string file_name = "", char delim = ' ') {
     return res;
 }
 
+void write_results(const string &filename, const vector<vector<float>> &results) {
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Error: cannot open file " << filename << std::endl;
+        return;
+    }
+    for (const vector<float> &result: results) {
+        int frame_id = result[0];
+        int track_id = result[1];
+        if (track_id < 0) continue;
+        float x1 = result[2];
+        float y1 = result[3];
+        float w = result[4];
+        float h = result[5];
+        float s = 1; // default score of a track
+        file << frame_id << ","
+             << track_id << ","
+             << std::fixed << std::setprecision(1)
+             << x1 << "," << y1 << "," << w << "," << h << ","
+             << std::setprecision(2) << s << ",-1,-1,-1\n";
+    }
+    file.close();
+    std::cout << "Saved results to " << filename << std::endl;
+}
+
 cv::Scalar get_color(int idx) {
     idx = (idx + 1) * 50;
     int r = (37 * idx) % 255;
@@ -76,17 +101,14 @@ cv::Scalar get_color(int idx) {
 }
 
 //int main() {
-//
-//
-//
-//
-//    MatrixXd arr = read_txt("../../detection/bytetrack/MOT16-02.txt", ',');
+//    MatrixXd arr = read_txt("../detection/bytetrack/MOT16-02.txt", ',');
 //    int n_frames = arr.col(0).maxCoeff();
 //
 //    BYTETracker byteTracker(30, 30);
 //    vector<cv::String> fn;
 //    glob("/media/ubuntu/2715608D71CBF6FC/datasets/mot/MOT16/train/MOT16-02/img1/*.jpg", fn, false);
 //
+//    vector<vector<float>> results;
 //    for (int frame = 0; frame < n_frames; frame++) {
 //        std::vector<vector<float>> rects;
 //        for (int i = 0; i < arr.rows(); i++) {
@@ -102,7 +124,7 @@ cv::Scalar get_color(int idx) {
 //        }
 //
 //        cv::Mat img = cv::imread(fn[frame]);
-//        vector<vector<float>> output_tracks = byteTracker.update(rects, img);
+//        vector<vector<float>> output_tracks = byteTracker.update(rects, fn[frame]);
 //
 //        cv::putText(img, //target image
 //                    "Frame " + std::to_string(frame), //text
@@ -122,11 +144,13 @@ cv::Scalar get_color(int idx) {
 //                        0.8,
 //                        c, //font color
 //                        1);
+//            vector<float> f_track = {(float) (frame), track[0], track[1], track[2], track[3], track[4]};
+//            results.emplace_back(f_track);
 //        }
-//        cv::imshow("DKM", img);
+//        cv::imshow("Image", img);
 //        cv::waitKey(10);
 //    }
-//
+//    write_results("MOT16-02.txt", results);
 //
 //    return 0;
 //}

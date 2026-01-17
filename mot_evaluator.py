@@ -66,6 +66,21 @@ def mot17(root):
     return train_dir, test_dir, seqs_train, seqs_test
 
 
+def dancetrack(root):
+    val_numbers = [4, 5, 7, 10, 14, 18, 19, 25, 26, 30, 34, 35, 41, 43, 47, 58, 63, 65, 73, 77, 79, 81, 90, 94, 97]
+    train_numbers = [1, 2, 6, 8, 12, 15, 16, 20, 23, 24, 27, 29, 32, 33, 37, 39, 44, 45, 49, 51, 52, 53, 55, 57, 61, 62,
+                     66, 68, 69, 72, 74, 75, 80, 82, 83, 86, 87, 96, 98, 99]
+    test_numbers = [3, 9, 11, 13, 17, 21, 22, 28, 31, 36, 38, 40, 42, 46, 48, 50, 54, 56, 59, 60, 64, 67, 70, 71, 76,
+                    78, 84, 85, 88, 89, 91, 92, 93, 95, 100]
+    seqs_train = [f"dancetrack{num:04d}" for num in train_numbers]
+    seqs_val = [f"dancetrack{num:04d}" for num in val_numbers]
+    seqs_test = [f"dancetrack{num:04d}" for num in test_numbers]
+    train_dir = root + '/DanceTrack/train/'
+    val_dir = root + '/DanceTrack/val/'
+    test_dir = root + '/DanceTrack/test/'
+    return train_dir, val_dir, test_dir, seqs_train, seqs_val, seqs_test
+
+
 def mot20(root):
     seqs_train = ['MOT20-01', 'MOT20-02', 'MOT20-03', 'MOT20-05']
     seqs_test = ['MOT20-04', 'MOT20-06', 'MOT20-07', 'MOT20-08']
@@ -168,7 +183,8 @@ def evaluate_trackeval(seqs, gt_folder, trackers_folder):
     com_hota = np.average(output_res['MotChallenge2DBox']['']['COMBINED_SEQ']['pedestrian']['HOTA']['HOTA'])
     com_mota = output_res['MotChallenge2DBox']['']['COMBINED_SEQ']['pedestrian']['CLEAR']['MOTA']
     com_idf1 = output_res['MotChallenge2DBox']['']['COMBINED_SEQ']['pedestrian']['Identity']['IDF1']
-    print(trackers_folder, f"HOTA {com_hota} IDF1 {com_idf1} MOTA {com_mota}")
+    idsw = output_res['MotChallenge2DBox']['']['COMBINED_SEQ']['pedestrian']['CLEAR']['IDSW']
+    print(trackers_folder, f"HOTA {com_hota} IDF1 {com_idf1} MOTA {com_mota} IDSW {idsw}")
 
 
 class MOTEvaluator:
